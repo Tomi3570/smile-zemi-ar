@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>おうち英語 AR</title>
+<title>おうち発見ラボ AR</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -826,7 +826,7 @@ function triggerSuccessEffect() {
     }, i * 80);
   }
 
-  // Success chime via Web Audio API
+  // Success chime via Web Audio 
   playSuccessChime();
 }
 
@@ -881,7 +881,7 @@ function resetGame() {
 
 // ─── Whisper API config ───────────────────────────────────────────────────────
 // ⚠️ Replace with your OpenAI API key (prototype use only)
-const OPENAI_API_KEY = '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';
+const OPENAI_API_KEY = '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';
 
 // ─── Pronunciation check (Whisper) ───────────────────────────────────────────
 let mediaRecorder = null;
