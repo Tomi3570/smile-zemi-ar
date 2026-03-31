@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>おうち発見ラボ AR</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Nunito', sans-serif; }
+
+#video {
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; z-index: 0;
+}
+
+#canvas {
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 5; pointer-events: none;
+}
+
+/* ─── Loading screen ─────────────────────────────────────── */
+#loading {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(160deg, #060e0b, #0a2018);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 20px; z-index: 100;
+  transition: opacity 0.6s;
+}
+#loading.hidden { opacity: 0; pointer-events: none; }
+.loading-icon { font-size: 52px; animation: pulse-icon 1.2s ease-in-out infinite alternate; }
+@keyframes pulse-icon { from { transform: scale(1); } to { transform: scale(1.1); } }
+.loading-title { font-size: 20px; font-weight: 900; color: #fff; }
+.loading-sub { font-size: 12px; color: rgba(255,255,255,0.45); text-align: center; line-height: 1.7; padding: 0 40px; }
+.loading-bar-wrap { width: 200px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+.loading-bar { height: 100%; width: 0%; background: #1D9E75; border-radius: 2px; transition: width 0.4s ease; }
+.loading-label { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 700; }
+
+/* ─── No camera ──────────────────────────────────────────── */
+#no-camera {
+  position: fixed; top:0; left:0; right:0; bottom:0;
+  background: linear-gradient(160deg,#060e0b,#0d2018);
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px; z-index: 90;
+}
+.nc-icon { font-size: 48px; }
+.nc-title { font-size: 18px; font-weight: 900; color: #fff; }
+.nc-sub { font-size: 12px; color: rgba(255,255,255,0.45); text-align: center; padding: 0 32px; line-height: 1.7; }
+
+/* ─── STEP 1: Mission select screen ─────────────────────── */
+#mission-select {
+  position: fixed; top:0; left:0; right:0; bottom:0;
+  background: #f5f5f5;
+  z-index: 80; display: flex; flex-direction: column;
+  align-items: center; overflow-y: auto;
+  padding: env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,20px);
+  transition: opacity 0.4s;
+}
+#mission-select.hidden { opacity:0; pointer-events:none; }
+
+.select-header {
+  width: 100%;
+  background: #fff;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid #e8e8e8;
+}
+.select-header-inner {
+  display: flex; align-items: center; gap: 12px;
+}
+.select-logo-circle {
+  width: 44px; height: 44px;
+  background: #e8f7f2;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+}
+.select-title { font-size: 18px; font-weight: 900; color: #1a1a1a; }
+.select-sub { font-size: 12px; color: #888; margin-top: 2px; font-weight: 700; }
+
+.select-section-label {
+  width: 100%; padding: 20px 20px 10px;
+  font-size: 11px; font-weight: 700; color: #888;
+  letter-spacing: 0.1em; text-transform: uppercase;
+}
+
+.mission-list {
+  width: 100%; padding: 0 16px 24px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+/* Updated mission card — white bg, clean border */
+.mission-card {
+  background: #fff;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 16px; padding: 16px;
+  display: flex; align-items: center; gap: 14px;
+  cursor: pointer; transition: all 0.2s;
+  -webkit-appearance: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.mission-card:active {
+  background: #f0faf6;
+  border-color: #1D9E75;
+  transform: scale(0.98);
+}
+.mission-card-num {
+  width: 32px; height: 32px;
+  background: #e8f7f2;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 900; color: #1D9E75;
+  flex-shrink: 0;
+}
+.mission-card-info { flex:1; }
+.mission-card-title { font-size: 13px; font-weight: 900; color: #1a1a1a; line-height: 1.4; }
+.mission-card-words {
+  font-size: 11px; color: #999; margin-top: 4px; font-weight: 700;
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.mission-card-word-tag {
+  background: #f0f0f0; border-radius: 6px;
+  padding: 2px 7px; font-size: 10px;
+}
+.mission-card-arrow { font-size: 16px; color: #ccc; flex-shrink:0; }
+
+/* ─── STEP 2: AR scan UI ─────────────────────────────────── */
+
+/* Top bar — white pill style like the slide */
+.top-bar {
+  position: fixed; top: 0; left: 0; right: 0;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  padding: env(safe-area-inset-top, 10px) 16px 12px;
+  display: flex; align-items: center; gap: 12px;
+  z-index: 30;
+  border-bottom: 1px solid rgba(0,0,0,0.07);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+.mission-icon {
+  width: 38px; height: 38px;
+  background: #e8f7f2;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.mission-info { flex: 1; min-width: 0; }
+.mission-label { font-size: 9px; color: #1D9E75; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.mission-title { font-size: 11.5px; color: #1a1a1a; font-weight: 800; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mission-badge {
+  background: #1D9E75;
+  border-radius: 14px; padding: 5px 14px;
+  text-align: center; flex-shrink: 0;
+}
+.badge-num { font-size: 20px; font-weight: 900; color: #fff; line-height: 1; }
+.badge-label { font-size: 8px; color: rgba(255,255,255,0.75); font-weight: 700; }
+
+/* AR scan guide hint */
+.scan-hint {
+  position: fixed;
+  bottom: 110px; left: 0; right: 0;
+  text-align: center; z-index: 20; pointer-events: none;
+}
+.scan-hint span {
+  display: inline-block;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 20px; padding: 8px 20px;
+  font-size: 12px; color: #333; font-weight: 800;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  animation: float 2.5s ease-in-out infinite;
+}
+@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+/* Bottom word bar */
+.bottom-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: rgba(255,255,255,0.97);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  padding: 10px 12px env(safe-area-inset-bottom, 12px);
+  z-index: 30;
+  border-top: 1px solid rgba(0,0,0,0.07);
+  box-shadow: 0 -2px 16px rgba(0,0,0,0.07);
+}
+.bottom-bar-label {
+  font-size: 9px; font-weight: 800; color: #aaa;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  text-align: center; margin-bottom: 7px;
+}
+.word-chips-row { display: flex; gap: 8px; }
+.word-chip {
+  flex: 1;
+  background: #f5f5f5;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 14px; padding: 8px 4px 7px;
+  text-align: center;
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.word-chip-en {
+  font-size: 12px; font-weight: 900; color: #bbb;
+  display: block; line-height: 1.2;
+}
+.word-chip-jp {
+  font-size: 9px; font-weight: 700; color: #ccc;
+  display: block; margin-top: 2px;
+}
+.word-chip.detected .word-chip-en { color: #1D9E75; }
+.word-chip.detected .word-chip-jp { color: rgba(29,158,117,0.6); }
+.word-chip.detected {
+  background: #edfaf5;
+  border-color: #1D9E75;
+  animation: chip-pulse 1s ease-in-out infinite alternate;
+}
+.word-chip.found {
+  background: #1D9E75;
+  border-color: #1D9E75;
+  animation: none;
+}
+.word-chip.found .word-chip-en { color: #fff; }
+.word-chip.found .word-chip-jp { color: rgba(255,255,255,0.7); }
+.word-chip.found .word-chip-en::after { content: ' ✓'; }
+@keyframes chip-pulse { from { border-color: rgba(29,158,117,0.4); } to { border-color: #1D9E75; } }
+
+/* ─── STEP 3: Word card (matching slide design) ────────────── */
+.ar-label {
+  position: fixed;
+  background: #fff;
+  border: 1.5px solid rgba(0,0,0,0.09);
+  border-radius: 18px; padding: 16px 18px; min-width: 220px;
+  z-index: 40; pointer-events: all;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08);
+  animation: cardIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes cardIn { from { opacity:0; transform:scale(0.75) translateY(10px); } to { opacity:1; transform:scale(1) translateY(0); } }
+
+/* Top row: small leaf icon + english word */
+.label-top-row { display: flex; align-items: flex-start; gap: 10px; }
+.label-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: #e8f7f2;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0; margin-top: 2px;
+}
+.label-text-group { flex: 1; }
+.label-en { font-size: 24px; font-weight: 900; color: #1a1a1a; letter-spacing: -0.02em; line-height: 1.1; }
+.label-phonetic { font-size: 11px; color: #999; font-weight: 600; margin-top: 1px; font-style: italic; }
+.label-jp { font-size: 12px; color: #666; font-weight: 700; margin-top: 3px; }
+
+/* Divider */
+.label-divider { height: 1px; background: #f0f0f0; margin: 12px 0; }
+
+/* Action buttons — matching slide: おとをきく / こえにだす / check */
+.label-actions {
+  display: flex; gap: 8px; align-items: center;
+}
+.btn-sound {
+  flex: 1;
+  background: #f5f5f5;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 12px; padding: 9px 8px; cursor: pointer;
+  font-size: 11px; color: #333;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  font-weight: 800; font-family: 'Nunito', sans-serif;
+  -webkit-appearance: none;
+  transition: all 0.15s;
+}
+.btn-sound:active { background: #e8f7f2; border-color: #1D9E75; color: #1D9E75; }
+.btn-sound .btn-icon {
+  width: 20px; height: 20px;
+  background: #1D9E75;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: #fff; flex-shrink: 0;
+}
+.btn-sound.slow .btn-icon { background: #f0a820; }
+
+.btn-collect {
+  width: 40px; height: 40px;
+  background: #f0f0f0;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 12px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  font-family: 'Nunito', sans-serif; -webkit-appearance: none;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.btn-collect:active { background: #e8f7f2; border-color: #1D9E75; }
+
+/* Pronunciation row */
+.btn-mic {
+  width: 100%; background: #f9f9f9;
+  border: 1.5px dashed #ddd;
+  border-radius: 12px; padding: 9px 12px; cursor: pointer;
+  font-size: 12px; color: #999;
+  font-weight: 800; font-family: 'Nunito', sans-serif;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: all 0.2s; -webkit-appearance: none; margin-top: 10px;
+}
+.btn-mic:active, .btn-mic.recording {
+  background: #fff5f5;
+  border-color: rgba(239,70,70,0.6);
+  color: #ef6464;
+  animation: mic-pulse 0.8s ease-in-out infinite alternate;
+}
+@keyframes mic-pulse { from { border-color: rgba(239,70,70,0.3); } to { border-color: rgba(239,70,70,0.8); } }
+.pronun-result {
+  margin-top: 8px; border-radius: 10px; padding: 8px 12px;
+  font-size: 12px; font-weight: 800; text-align: center;
+  display: none; animation: fadeIn 0.3s ease;
+}
+.pronun-result.perfect { background: #edfaf5; border: 1px solid rgba(29,158,117,0.4); color: #1D9E75; }
+.pronun-result.close { background: #fff8e8; border: 1px solid rgba(240,168,32,0.4); color: #c88000; }
+.pronun-result.miss { background: #fff2f2; border: 1px solid rgba(239,70,70,0.3); color: #ef6464; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+/* ─── Blue detection dot (matching slide) ─────────────────── */
+/* Drawn on canvas — no extra HTML needed */
+
+/* ─── Success flash ───────────────────────────────────────── */
+#success-flash {
+  position: fixed; top:0; left:0; right:0; bottom:0;
+  z-index: 50; pointer-events: none; opacity: 0;
+}
+#success-flash.show { animation: flashAnim 0.7s ease-out forwards; }
+@keyframes flashAnim {
+  0% { opacity: 0; background: rgba(29,158,117,0); }
+  20% { opacity: 1; background: rgba(29,158,117,0.25); }
+  100% { opacity: 0; background: rgba(29,158,117,0); }
+}
+.emoji-burst {
+  position: fixed; z-index: 55; pointer-events: none;
+  font-size: 36px; line-height: 1;
+  animation: emojiBurst 1s ease-out forwards;
+}
+@keyframes emojiBurst {
+  0% { opacity: 1; transform: translateY(0) scale(0.5); }
+  60% { opacity: 1; transform: translateY(-80px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(-120px) scale(1); }
+}
+
+/* ─── Congrats ────────────────────────────────────────────── */
+.congrats-screen {
+  position: fixed; top:0; left:0; right:0; bottom:0;
+  background: rgba(245,250,248,0.97);
+  backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px; z-index: 60; opacity: 0; pointer-events: none;
+  transition: opacity 0.5s;
+}
+.congrats-screen.show { opacity: 1; pointer-events: all; }
+.congrats-emoji { font-size: 64px; animation: bounce 0.7s ease infinite alternate; }
+@keyframes bounce { from { transform: translateY(0) scale(1); } to { transform: translateY(-10px) scale(1.05); } }
+.congrats-title { font-size: 28px; font-weight: 900; color: #1D9E75; }
+.congrats-words { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; padding: 0 24px; }
+.congrats-word {
+  background: #edfaf5; border: 1.5px solid rgba(29,158,117,0.3);
+  border-radius: 14px; padding: 10px 18px;
+  font-size: 15px; font-weight: 900; color: #1D9E75; text-align: center;
+}
+.congrats-sub { font-size: 13px; color: #666; text-align: center; line-height: 1.8; padding: 0 32px; }
+.btn-again {
+  background: #1D9E75; border: none; border-radius: 16px;
+  padding: 14px 36px; color: white; font-size: 16px;
+  font-weight: 900; font-family: 'Nunito', sans-serif;
+  cursor: pointer; margin-top: 4px; -webkit-appearance: none;
+}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="loading-icon">🔍</div>
+  <div class="loading-title">おうち英語 AR</div>
+  <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
+  <div class="loading-label" id="loading-label">カメラを起動中...</div>
+  <div class="loading-sub">AIが身の回りのものを<br>リアルタイムで認識します</div>
+</div>
+
+<!-- No camera -->
+<div id="no-camera">
+  <div class="nc-icon">📷</div>
+  <div class="nc-title">カメラを許可してください</div>
+  <div class="nc-sub">SafariでカメラアクセスをONにして<br>ページをリロードしてください。<br><br>※ GitHub Pages（https）でのみ動作します</div>
+</div>
+
+<video id="video" autoplay playsinline muted></video>
+<canvas id="canvas"></canvas>
+
+<!-- Success flash -->
+<div id="success-flash"></div>
+
+<!-- ── STEP 1: Mission select screen ── -->
+<div id="mission-select">
+  <div class="select-header">
+    <div class="select-header-inner">
+      <div class="select-logo-circle">🔍</div>
+      <div>
+        <div class="select-title">おうち英語 AR</div>
+        <div class="select-sub">ミッションを選んでスタート！</div>
+      </div>
+    </div>
+  </div>
+  <div class="select-section-label">ミッション一覧</div>
+  <div class="mission-list" id="mission-list"></div>
+</div>
+
+<!-- ── STEP 2: AR scan UI ── -->
+<!-- Top bar -->
+<div class="top-bar">
+  <div class="mission-icon">🔍</div>
+  <div class="mission-info">
+    <div class="mission-label">今日のミッション</div>
+    <div class="mission-title" id="mission-title">ミッションを選んでください</div>
+  </div>
+  <div class="mission-badge">
+    <div class="badge-num" id="count-display">0</div>
+    <div class="badge-label">/ 3</div>
+  </div>
+</div>
+
+<!-- Scan hint pill -->
+<div class="scan-hint" id="status-pill">
+  <span id="status-text">🤖 AI起動中...</span>
+</div>
+
+<!-- Bottom word bar -->
+<div class="bottom-bar">
+  <div class="bottom-bar-label">さがしているもの</div>
+  <div class="word-chips-row">
+    <div class="word-chip" id="chip-0">
+      <span class="word-chip-en" id="chip-en-0">?</span>
+      <span class="word-chip-jp" id="chip-jp-0">—</span>
+    </div>
+    <div class="word-chip" id="chip-1">
+      <span class="word-chip-en" id="chip-en-1">?</span>
+      <span class="word-chip-jp" id="chip-jp-1">—</span>
+    </div>
+    <div class="word-chip" id="chip-2">
+      <span class="word-chip-en" id="chip-en-2">?</span>
+      <span class="word-chip-jp" id="chip-jp-2">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- Congrats -->
+<div class="congrats-screen" id="congrats-screen">
+  <div class="congrats-emoji">🌟</div>
+  <div class="congrats-title">ミッション クリア！</div>
+  <div class="congrats-words" id="congrats-words"></div>
+  <div class="congrats-sub">3つのものを英語で見つけたよ！<br>発音を練習してみよう。</div>
+  <button class="btn-again" onclick="showMissionSelect()">ミッションを選ぶ</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script>
+// ─── Mission data ────────────────────────────────────────────────────────────
+const MISSIONS = [
+  {
+    title: 'おうちのものを3つ英語で見つけよう！',
+    icon: '🏠',
+    words: [
+      { cocoLabel: 'cup',          en: 'cup',    phonetic: '/kʌp/',      jp: 'カップ',       emoji: '☕' },
+      { cocoLabel: 'chair',        en: 'chair',  phonetic: '/tʃer/',     jp: 'いす',         emoji: '🪑' },
+      { cocoLabel: 'potted plant', en: 'plant',  phonetic: '/plænt/',    jp: 'しょくぶつ',   emoji: '🌿' },
+    ]
+  },
+  {
+    title: 'リビングのものを3つ英語で見つけよう！',
+    icon: '📺',
+    words: [
+      { cocoLabel: 'book',      en: 'book',   phonetic: '/bʊk/',        jp: 'ほん',               emoji: '📖' },
+      { cocoLabel: 'laptop',    en: 'laptop', phonetic: '/ˈlæptɒp/',    jp: 'パソコン',           emoji: '💻' },
+      { cocoLabel: 'cell phone',en: 'phone',  phonetic: '/foʊn/',       jp: 'スマートフォン',     emoji: '📱' },
+    ]
+  },
+  {
+    title: 'キッチンのものを3つ英語で見つけよう！',
+    icon: '🍳',
+    words: [
+      { cocoLabel: 'bottle',        en: 'bottle',       phonetic: '/ˈbɒtəl/',         jp: 'ボトル',       emoji: '🧴' },
+      { cocoLabel: 'bowl',          en: 'bowl',         phonetic: '/boʊl/',           jp: 'ボウル',       emoji: '🥣' },
+      { cocoLabel: 'refrigerator',  en: 'refrigerator', phonetic: '/rɪˈfrɪdʒəreɪtər/', jp: 'れいぞうこ', emoji: '🧊' },
+    ]
+  },
+  {
+    title: 'デスクまわりを3つ英語で見つけよう！',
+    icon: '💻',
+    words: [
+      { cocoLabel: 'laptop',   en: 'laptop',   phonetic: '/ˈlæptɒp/', jp: 'パソコン', emoji: '💻' },
+      { cocoLabel: 'scissors', en: 'scissors', phonetic: '/ˈsɪzərz/', jp: 'はさみ',   emoji: '✂️' },
+      { cocoLabel: 'book',     en: 'book',     phonetic: '/bʊk/',     jp: 'ほん',     emoji: '📖' },
+    ]
+  },
+  {
+    title: 'テレビまわりを3つ英語で見つけよう！',
+    icon: '📺',
+    words: [
+      { cocoLabel: 'tv',        en: 'TV',     phonetic: '/ˌtiːˈviː/', jp: 'テレビ', emoji: '📺' },
+      { cocoLabel: 'remote',    en: 'remote', phonetic: '/rɪˈmoʊt/', jp: 'リモコン', emoji: '🎮' },
+      { cocoLabel: 'couch',     en: 'couch',  phonetic: '/kaʊtʃ/',   jp: 'ソファ',   emoji: '🛋️' },
+    ]
+  },
+  {
+    title: '時計と時間のものを3つ英語で見つけよう！',
+    icon: '🕐',
+    words: [
+      { cocoLabel: 'clock',     en: 'clock', phonetic: '/klɒk/',  jp: 'とけい',           emoji: '🕐' },
+      { cocoLabel: 'vase',      en: 'vase',  phonetic: '/veɪz/',  jp: 'かびん',           emoji: '🏺' },
+      { cocoLabel: 'cell phone',en: 'phone', phonetic: '/foʊn/',  jp: 'スマートフォン', emoji: '📱' },
+    ]
+  },
+  {
+    title: 'キッチン上級！3つ英語で見つけよう！',
+    icon: '🍴',
+    words: [
+      { cocoLabel: 'microwave',    en: 'microwave',    phonetic: '/ˈmaɪkrəweɪv/', jp: 'でんしレンジ', emoji: '📡' },
+      { cocoLabel: 'sink',         en: 'sink',         phonetic: '/sɪŋk/',        jp: 'シンク',       emoji: '🚿' },
+      { cocoLabel: 'oven',         en: 'oven',         phonetic: '/ˈʌvən/',       jp: 'オーブン',     emoji: '🔥' },
+    ]
+  },
+  {
+    title: 'くだものと食べもの3つ英語で見つけよう！',
+    icon: '🍎',
+    words: [
+      { cocoLabel: 'apple',  en: 'apple',  phonetic: '/ˈæpəl/',    jp: 'りんご',   emoji: '🍎' },
+      { cocoLabel: 'banana', en: 'banana', phonetic: '/bəˈnɑːnə/', jp: 'バナナ',   emoji: '🍌' },
+      { cocoLabel: 'orange', en: 'orange', phonetic: '/ˈɒrɪndʒ/',  jp: 'オレンジ', emoji: '🍊' },
+    ]
+  },
+];
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let model = null;
+let mission = MISSIONS[0];
+let foundCount = 0;
+let foundWords = [];
+let currentLabel = null;
+let detectionActive = false;
+let detectionLoop = null;
+let detectedNow = {};
+const DETECT_FRAMES = 4;
+const DETECT_INTERVAL = 300;
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function setLoadingBar(pct, text) {
+  document.getElementById('loading-bar').style.width = pct + '%';
+  document.getElementById('loading-label').textContent = text;
+}
+
+function buildMissionSelect() {
+  const list = document.getElementById('mission-list');
+  list.innerHTML = MISSIONS.map((m, i) => `
+    <div class="mission-card" onclick="startMission(${i})">
+      <div class="mission-card-num">${i + 1}</div>
+      <div class="mission-card-info">
+        <div class="mission-card-title">${m.title}</div>
+        <div class="mission-card-words">
+          ${m.words.map(w => `<span class="mission-card-word-tag">${w.en}</span>`).join('')}
+        </div>
+      </div>
+      <div class="mission-card-arrow">›</div>
+    </div>
+  `).join('');
+}
+
+function showMissionSelect() {
+  detectionActive = false;
+  clearTimeout(detectionLoop);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (currentLabel) { currentLabel.remove(); currentLabel = null; }
+  document.getElementById('congrats-screen').classList.remove('show');
+  document.getElementById('mission-select').classList.remove('hidden');
+}
+
+function startMission(index) {
+  document.getElementById('mission-select').classList.add('hidden');
+  setMission(index);
+  startDetection();
+}
+
+async function init() {
+  try {
+    setLoadingBar(15, 'カメラを起動中...');
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+    video.play();
+  } catch (e) {
+    document.getElementById('no-camera').style.display = 'flex';
+    document.getElementById('loading').classList.add('hidden');
+    return;
+  }
+
+  setLoadingBar(40, 'AIモデルをダウンロード中...');
+  await tf.ready();
+  setLoadingBar(65, 'AIを準備中...');
+  model = await cocoSsd.load({ base: 'mobilenet_v2' });
+  setLoadingBar(100, '準備完了！');
+  await new Promise(r => setTimeout(r, 400));
+  document.getElementById('loading').classList.add('hidden');
+
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  buildMissionSelect();
+}
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function setMission(index) {
+  mission = MISSIONS[index % MISSIONS.length];
+  document.getElementById('mission-title').textContent = mission.title;
+  foundCount = 0;
+  foundWords = [];
+  detectedNow = {};
+  document.getElementById('count-display').textContent = '0';
+  mission.words.forEach((w, i) => {
+    const chip = document.getElementById('chip-' + i);
+    chip.className = 'word-chip';
+    document.getElementById('chip-en-' + i).textContent = w.en;
+    document.getElementById('chip-jp-' + i).textContent = w.jp;
+  });
+}
+
+// ─── Detection loop ───────────────────────────────────────────────────────────
+function startDetection() {
+  detectionActive = true;
+  setStatus('カメラをかざして探してみよう 👁️');
+  runDetection();
+}
+
+async function runDetection() {
+  if (!detectionActive || !model) return;
+  try {
+    const predictions = await model.detect(video);
+    processDetections(predictions);
+  } catch (e) {}
+  detectionLoop = setTimeout(runDetection, DETECT_INTERVAL);
+}
+
+function processDetections(predictions) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const sx = canvas.width / video.videoWidth;
+  const sy = canvas.height / video.videoHeight;
+
+  const foundLabels = new Set(foundWords.map(w => w.cocoLabel));
+  const missionLabels = mission.words.map(w => w.cocoLabel);
+
+  const seen = new Set();
+
+  for (const pred of predictions) {
+    const label = pred.class;
+    const conf = pred.score;
+    if (conf < 0.45) continue;
+    if (!missionLabels.includes(label)) continue;
+    if (foundLabels.has(label)) continue;
+
+    seen.add(label);
+    if (!detectedNow[label]) detectedNow[label] = { frames: 0, confidence: 0, bbox: pred.bbox };
+    detectedNow[label].frames++;
+    detectedNow[label].confidence = conf;
+    detectedNow[label].bbox = pred.bbox;
+
+    const [bx, by, bw, bh] = pred.bbox;
+    const rx = bx * sx, ry = by * sy, rw = bw * sx, rh = bh * sy;
+    const stable = detectedNow[label].frames >= DETECT_FRAMES;
+
+    // ── Dashed bounding box (matching slide design) ──
+    ctx.save();
+    ctx.strokeStyle = stable ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = stable ? 2 : 1.5;
+    ctx.setLineDash([8, 5]);
+    ctx.strokeRect(rx, ry, rw, rh);
+    ctx.restore();
+
+    // ── Blue glowing dot in center (matching slide) ──
+    const dotX = rx + rw / 2;
+    const dotY = ry + rh / 2;
+    if (stable) {
+      // Outer glow ring
+      const grad = ctx.createRadialGradient(dotX, dotY, 4, dotX, dotY, 22);
+      grad.addColorStop(0, 'rgba(100,160,255,0.35)');
+      grad.addColorStop(1, 'rgba(100,160,255,0)');
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, 22, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+    // White ring
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, stable ? 11 : 8, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.stroke();
+    // Blue fill
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, stable ? 8 : 5, 0, Math.PI * 2);
+    ctx.fillStyle = stable ? 'rgba(80,140,255,1)' : 'rgba(80,140,255,0.6)';
+    ctx.fill();
+
+    // Update chip
+    const wordIdx = mission.words.findIndex(w => w.cocoLabel === label);
+    if (wordIdx >= 0 && !foundLabels.has(label)) {
+      const chip = document.getElementById('chip-' + wordIdx);
+      if (!chip.classList.contains('found')) chip.classList.add('detected');
+    }
+
+    // Show word card when stable
+    if (stable && !currentLabel && !foundLabels.has(label)) {
+      const word = mission.words.find(w => w.cocoLabel === label);
+      if (word) {
+        const cx2 = (bx + bw / 2) * sx;
+        const cy2 = (by + bh / 2) * sy;
+        showLabelCard(word, cx2, cy2, conf);
+      }
+    }
+  }
+
+  // Reset unseen labels
+  for (const label of Object.keys(detectedNow)) {
+    if (!seen.has(label)) {
+      detectedNow[label].frames = Math.max(0, detectedNow[label].frames - 2);
+      if (detectedNow[label].frames === 0) delete detectedNow[label];
+    }
+  }
+
+  // Status text
+  if (seen.size > 0) {
+    const names = [...seen].map(l => mission.words.find(w => w.cocoLabel === l)?.en).filter(Boolean);
+    setStatus('✨ ' + names.join('、') + ' を発見！');
+  } else if (foundCount < 3) {
+    setStatus('カメラをかざして探してみよう 👁️');
+  }
+
+  // Remove detected state for chips no longer in view
+  mission.words.forEach((w, i) => {
+    if (!foundLabels.has(w.cocoLabel) && !seen.has(w.cocoLabel)) {
+      const chip = document.getElementById('chip-' + i);
+      chip.classList.remove('detected');
+    }
+  });
+}
+
+// ─── STEP 3: Word card (matching slide) ──────────────────────────────────────
+function showLabelCard(word, cx2, cy2, conf) {
+  if (currentLabel) return;
+  const card = document.createElement('div');
+  card.className = 'ar-label';
+
+  card.innerHTML = `
+    <div class="label-top-row">
+      <div class="label-icon">${word.emoji || '🔍'}</div>
+      <div class="label-text-group">
+        <div class="label-en">${word.en}</div>
+        <div class="label-phonetic">${word.phonetic}</div>
+        <div class="label-jp">${word.jp}</div>
+      </div>
+    </div>
+    <div class="label-divider"></div>
+    <div class="label-actions">
+      <button class="btn-sound" onclick="speakWord('${word.en}')">
+        <span class="btn-icon">▶</span> おとをきく
+      </button>
+      <button class="btn-sound slow" onclick="speakWord('${word.en}', true)">
+        <span class="btn-icon">▶</span> こえにだす
+      </button>
+      <button class="btn-collect" onclick="collect('${word.cocoLabel}')">✓</button>
+    </div>
+    <button class="btn-mic" id="btn-mic-${word.cocoLabel}" onclick="startPronunciation('${word.en}', '${word.cocoLabel}')">
+      🎤 発音してみよう
+    </button>
+    <div class="pronun-result" id="pronun-result-${word.cocoLabel}"></div>
+  `;
+
+  const cardW = 240, cardH = 210;
+  let left = Math.max(12, Math.min(cx2 - cardW / 2, window.innerWidth - cardW - 12));
+  let top = cy2 - cardH - 24;
+  if (top < 80) top = cy2 + 20;
+  if (top + cardH > window.innerHeight - 110) top = cy2 - cardH - 10;
+  card.style.left = left + 'px';
+  card.style.top = top + 'px';
+  card.style.width = cardW + 'px';
+
+  document.body.appendChild(card);
+  currentLabel = card;
+
+  setTimeout(() => {
+    document.addEventListener('click', dismissOnOutside, { once: true });
+  }, 200);
+}
+
+function dismissOnOutside(e) {
+  if (currentLabel && !currentLabel.contains(e.target)) {
+    currentLabel.remove();
+    currentLabel = null;
+  }
+}
+
+// ─── Collect ─────────────────────────────────────────────────────────────────
+function collect(cocoLabel) {
+  const word = mission.words.find(w => w.cocoLabel === cocoLabel);
+  if (!word) return;
+  if (foundWords.find(w => w.cocoLabel === cocoLabel)) return;
+  if (currentLabel) { currentLabel.remove(); currentLabel = null; }
+
+  foundWords.push(word);
+  const wordIdx = mission.words.findIndex(w => w.cocoLabel === cocoLabel);
+  const chip = document.getElementById('chip-' + wordIdx);
+  chip.classList.remove('detected');
+  chip.classList.add('found');
+
+  foundCount = foundWords.length;
+  document.getElementById('count-display').textContent = foundCount;
+  speakWord(word.en);
+  triggerSuccessEffect();
+  delete detectedNow[cocoLabel];
+
+  if (foundCount >= 3) {
+    document.getElementById('status-pill').style.display = 'none';
+    setTimeout(showCongrats, 1200);
+  }
+}
+
+// ─── Success effect ───────────────────────────────────────────────────────────
+function triggerSuccessEffect() {
+  const flash = document.getElementById('success-flash');
+  flash.classList.remove('show');
+  void flash.offsetWidth;
+  flash.classList.add('show');
+  setTimeout(() => flash.classList.remove('show'), 700);
+
+  const emojis = ['🌟','✨','⭐','🎉','👏'];
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'emoji-burst';
+      el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      el.style.left = (20 + Math.random() * 60) + '%';
+      el.style.top = (40 + Math.random() * 20) + '%';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1000);
+    }, i * 80);
+  }
+  playSuccessChime();
+}
+
+function playSuccessChime() {
+  try {
+    const ctx2 = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((freq, i) => {
+      const osc = ctx2.createOscillator();
+      const gain = ctx2.createGain();
+      osc.connect(gain); gain.connect(ctx2.destination);
+      osc.type = 'sine'; osc.frequency.value = freq;
+      const t = ctx2.currentTime + i * 0.12;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.3, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      osc.start(t); osc.stop(t + 0.35);
+    });
+  } catch(e) {}
+}
+
+// ─── Congrats ─────────────────────────────────────────────────────────────────
+function showCongrats() {
+  detectionActive = false;
+  clearTimeout(detectionLoop);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const wordsEl = document.getElementById('congrats-words');
+  wordsEl.innerHTML = foundWords.map(w =>
+    `<div class="congrats-word">${w.en}<br><small style="font-size:10px;opacity:0.65">${w.jp}</small></div>`
+  ).join('');
+  document.getElementById('congrats-screen').classList.add('show');
+}
+
+// ─── TTS ──────────────────────────────────────────────────────────────────────
+function speakWord(word, slow = false) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(word);
+  utter.lang = 'en-US';
+  utter.rate = slow ? 0.6 : 1.0;
+  window.speechSynthesis.speak(utter);
+}
+
+function setStatus(text) {
+  document.getElementById('status-text').textContent = text;
+}
+
+// ─── Whisper pronunciation check ─────────────────────────────────────────────
+const OPENAI_API_KEY = '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';
+
+let mediaRecorder = null;
+let isRecording = false;
+let audioChunks = [];
+const RECORD_SECONDS = 3;
+
+async function startPronunciation(targetWord, cocoLabel) {
+  if (isRecording) return;
+  const micBtn = document.getElementById('btn-mic-' + cocoLabel);
+  const resultEl = document.getElementById('pronun-result-' + cocoLabel);
+  if (!micBtn || !resultEl) return;
+
+  window.speechSynthesis.cancel();
+  await new Promise(r => setTimeout(r, 300));
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    showPronunResult(cocoLabel, 'miss', '🎤 マイクを許可してください');
+    return;
+  }
+
+  isRecording = true;
+  audioChunks = [];
+  micBtn.classList.add('recording');
+  resultEl.style.display = 'none';
+
+  let remaining = RECORD_SECONDS;
+  micBtn.textContent = `🔴 話してね... ${remaining}秒`;
+  const timer = setInterval(() => {
+    remaining--;
+    if (remaining > 0) micBtn.textContent = `🔴 話してね... ${remaining}秒`;
+    else { clearInterval(timer); micBtn.textContent = '⏳ 判定中...'; }
+  }, 1000);
+
+  const mimeType = ['audio/webm','audio/ogg','audio/mp4'].find(t => MediaRecorder.isTypeSupported(t)) || '';
+  mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = async () => {
+    clearInterval(timer);
+    stream.getTracks().forEach(t => t.stop());
+    isRecording = false;
+    const blob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
+    await sendToWhisper(blob, targetWord, cocoLabel, micBtn);
+  };
+  mediaRecorder.start();
+  setTimeout(() => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+  }, RECORD_SECONDS * 1000);
+}
+
+async function sendToWhisper(blob, targetWord, cocoLabel, micBtn) {
+  try {
+    const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+    const file = new File([blob], `audio.${ext}`, { type: blob.type });
+    const form = new FormData();
+    form.append('file', file);
+    form.append('model', 'whisper-1');
+    form.append('language', 'en');
+    form.append('prompt', `The speaker is saying the English word: ${targetWord}`);
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+      body: form
+    });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || 'API error'); }
+    const data = await res.json();
+    const spoken = (data.text || '').toLowerCase().trim().replace(/[.,!?]/g, '');
+    evaluatePronunciation(targetWord.toLowerCase(), spoken, cocoLabel);
+  } catch (e) {
+    showPronunResult(cocoLabel, 'miss', `😢 エラー: ${e.message}`);
+  } finally {
+    if (micBtn) { micBtn.classList.remove('recording'); micBtn.textContent = '🎤 もう一度発音する'; }
+  }
+}
+
+function evaluatePronunciation(target, spoken, cocoLabel) {
+  if (spoken === target || spoken.includes(target)) {
+    showPronunResult(cocoLabel, 'perfect', `🌟 完璧！`);
+    triggerSuccessEffect();
+  } else {
+    const dist = levenshtein(target, spoken);
+    const ratio = dist / Math.max(target.length, spoken.length || 1);
+    if (ratio <= 0.35) showPronunResult(cocoLabel, 'close', `👍 惜しい！もう一度！`);
+    else showPronunResult(cocoLabel, 'miss', `💪 もう一度チャレンジ！`);
+  }
+}
+
+function showPronunResult(cocoLabel, cls, msg) {
+  const el = document.getElementById('pronun-result-' + cocoLabel);
+  if (!el) return;
+  el.className = 'pronun-result ' + cls;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m+1}, (_, i) => Array.from({length: n+1}, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+// Start
+init();
+</script>
+</body>
+</html>
